@@ -106,3 +106,54 @@ CREATE TABLE IF NOT EXISTS code_summary (
     KEY idx_project (project_id),
     KEY idx_target (target_type, target_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '语义摘要 / 向量映射';
+
+-- ------------------------------------------------------------
+-- 问答历史表（热点分析数据源）
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS qa_history (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    project_id      VARCHAR(128)  NOT NULL COMMENT '工程标识',
+    question        TEXT          NOT NULL COMMENT '用户问题原文',
+    question_vector TEXT          COMMENT '问题的 embedding 向量（JSON 数组，用于聚类）',
+    answer          LONGTEXT      COMMENT 'LLM 回答',
+    hit_refs        TEXT          COMMENT '命中的代码引用（JSON 数组）',
+    feedback        VARCHAR(16)   DEFAULT NULL COMMENT '用户反馈：null/GOOD/BAD',
+    create_time     DATETIME      NOT NULL,
+    KEY idx_project (project_id),
+    KEY idx_create_time (create_time)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '问答历史记录';
+
+-- ------------------------------------------------------------
+-- 热点主题表
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS hotspot_topic (
+    id                        BIGINT AUTO_INCREMENT PRIMARY KEY,
+    project_id                VARCHAR(128)  NOT NULL COMMENT '工程标识',
+    topic_name                VARCHAR(256)  NOT NULL COMMENT '系统生成的主题名称',
+    question_count            INT           NOT NULL DEFAULT 0 COMMENT '被问次数',
+    representative_questions  TEXT          COMMENT '代表性问题（JSON 数组）',
+    involved_modules          TEXT          COMMENT '涉及的代码模块（JSON 数组）',
+    analysis                  LONGTEXT      COMMENT '系统分析结论',
+    status                    VARCHAR(16)   NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/APPROVED/REJECTED/REVISED',
+    reject_reason             TEXT          COMMENT '被驳回的原因（人工填写）',
+    create_time               DATETIME      NOT NULL,
+    update_time               DATETIME      NOT NULL,
+    KEY idx_project (project_id),
+    KEY idx_status (status)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '热点主题';
+
+-- ------------------------------------------------------------
+-- 热点沉淀文档表
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS hotspot_document (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    project_id      VARCHAR(128)  NOT NULL COMMENT '工程标识',
+    topic_id        BIGINT        NOT NULL COMMENT '关联的热点主题 id',
+    title           VARCHAR(512)  NOT NULL COMMENT '文档标题',
+    content         LONGTEXT      COMMENT '文档正文（Markdown）',
+    status          VARCHAR(16)   NOT NULL DEFAULT 'GENERATED' COMMENT 'GENERATED/PUBLISHED',
+    create_time     DATETIME      NOT NULL,
+    update_time     DATETIME      NOT NULL,
+    KEY idx_project (project_id),
+    KEY idx_topic (topic_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '热点沉淀文档';

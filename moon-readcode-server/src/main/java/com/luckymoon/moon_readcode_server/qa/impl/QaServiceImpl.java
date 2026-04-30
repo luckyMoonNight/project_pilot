@@ -1,5 +1,7 @@
 package com.luckymoon.moon_readcode_server.qa.impl;
 
+import com.luckymoon.moon_readcode_server.entity.QaHistory;
+import com.luckymoon.moon_readcode_server.mapper.QaHistoryMapper;
 import com.luckymoon.moon_readcode_server.qa.QaService;
 import com.luckymoon.moon_readcode_server.qa.dto.QaRequest;
 import com.luckymoon.moon_readcode_server.qa.dto.QaResponse;
@@ -39,6 +41,7 @@ public class QaServiceImpl implements QaService {
     private final LlmService llmService;
     private final EmbeddingService embeddingService;
     private final VectorStore vectorStore;
+    private final QaHistoryMapper qaHistoryMapper;
 
     @Override
     public QaResponse ask(QaRequest request) {
@@ -55,8 +58,13 @@ public class QaServiceImpl implements QaService {
                 ? DEFAULT_TOP_K : request.getTopK();
         float[] queryVector = embeddingService.embed(request.getQuestion());
 
-        // 召回：按 targetType 过滤可能是多值，遍历后合并去重
+        // ========== 1. 向量检索 ==========
+        long retrievalStart = System.currentTimeMillis();
         List<String> targetTypes = parseTargetTypes(request.getTargetTypeFilter());
+        String retrievalFilter = targetTypes.isEmpty()
+                ? "projectId=" + request.getProjectId()
+                : "projectId=" + request.getProjectId() + ", targetType=" + targetTypes;
+
         List<VectorStore.VectorMatch> merged = new ArrayList<>();
         if (targetTypes.isEmpty()) {
             merged.addAll(vectorStore.search(queryVector, topK,
@@ -73,8 +81,9 @@ public class QaServiceImpl implements QaService {
                 merged = new ArrayList<>(merged.subList(0, topK));
             }
         }
+        long retrievalMillis = System.currentTimeMillis() - retrievalStart;
 
-        // 构造 LLM 上下文
+        // ========== 2. 构造 LLM 上下文 ==========
         String context = merged.stream()
                 .map(m -> "## " + safeStr(m.getMetadata().get("targetType"))
                         + " " + safeStr(m.getMetadata().get("targetRef")) + "\n"
@@ -94,8 +103,18 @@ public class QaServiceImpl implements QaService {
                 %s
                 """.formatted(request.getQuestion(), context);
 
-        String answer = llmService.complete(systemPrompt, userPrompt);
+        // ========== 3. 调用 LLM ==========
+        log.info("RAG 问答 | question={} | 检索到 {} 条 | 上下文 {} 字符 | 检索耗时 {}ms",
+                request.getQuestion(), merged.size(), context.length(), retrievalMillis);
 
+        long llmStart = System.currentTimeMillis();
+        String answer = llmService.complete(systemPrompt, userPrompt);
+        long llmMillis = System.currentTimeMillis() - llmStart;
+
+        log.info("RAG 问答完成 | LLM 耗时 {}ms | 总耗时 {}ms", llmMillis,
+                System.currentTimeMillis() - start);
+
+        // ========== 4. 组装响应 ==========
         List<QaResponse.Reference> refs = merged.stream()
                 .map(m -> QaResponse.Reference.builder()
                         .id(m.getId())
@@ -106,11 +125,42 @@ public class QaServiceImpl implements QaService {
                         .build())
                 .toList();
 
+        QaResponse.ThinkingProcess thinking = QaResponse.ThinkingProcess.builder()
+                .retrievalMillis(retrievalMillis)
+                .llmMillis(llmMillis)
+                .retrievalFilter(retrievalFilter)
+                .retrievalHits(merged.size())
+                .systemPrompt(systemPrompt.trim())
+                .context(context)
+                .contextLengthChars(context.length())
+                .build();
+
         long cost = System.currentTimeMillis() - start;
+
+        // ========== 5. 保存问答历史（用于热点分析） ==========
+        try {
+            String vectorJson = Arrays.toString(queryVector);
+            String hitRefsJson = refs.stream()
+                    .map(r -> r.getTargetType() + ":" + r.getTargetRef())
+                    .collect(Collectors.joining(", ", "[", "]"));
+
+            QaHistory history = new QaHistory();
+            history.setProjectId(request.getProjectId());
+            history.setQuestion(request.getQuestion());
+            history.setQuestionVector(vectorJson);
+            history.setAnswer(answer);
+            history.setHitRefs(hitRefsJson);
+            qaHistoryMapper.insert(history);
+            log.debug("问答历史已保存 id={}", history.getId());
+        } catch (Exception e) {
+            log.warn("保存问答历史失败（不影响问答结果）: {}", e.getMessage());
+        }
+
         return QaResponse.builder()
                 .answer(answer)
                 .references(refs)
                 .costMillis(cost)
+                .thinkingProcess(thinking)
                 .build();
     }
 

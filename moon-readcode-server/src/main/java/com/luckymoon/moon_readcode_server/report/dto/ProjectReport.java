@@ -4,17 +4,14 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 工程分析报告。
  *
- * 内容覆盖：
- *   1) 整体概览（项目级摘要 + 各类型计数）；
- *   2) 模块视图（按 package 聚合的类列表）；
- *   3) 业务原型分布（CONTROLLER/SERVICE/MAPPER/...）；
- *   4) 典型执行链路样例（基于 code_relation 抽取）；
- *   5) Markdown 渲染版，便于直接展示。
+ * 以入口（Controller 端点）为核心视角：
+ *   1) 项目级分析结论（基于语义摘要）；
+ *   2) 入口端点列表 + 每个端点的调用链路 + 语义分析；
+ *   3) Markdown 渲染版，前端直接展示。
  */
 @Data
 @Builder
@@ -22,21 +19,16 @@ public class ProjectReport {
 
     private String projectId;
 
+    /** 基本统计 */
     private Overview overview;
 
-    /** packageName -> 该包下的类全限定名列表 */
-    private Map<String, List<String>> moduleView;
-
-    /** stereotype -> 类全限定名列表 */
-    private Map<String, List<String>> stereotypeView;
-
-    /** 典型执行链路样例：每条是从 Controller 出发的方法调用链 */
-    private List<List<String>> executionFlows;
-
-    /** 项目级摘要文本（可能为 null，如果 Phase 3 未运行） */
+    /** 项目级语义分析结论 */
     private String projectSummary;
 
-    /** Markdown 渲染版本，前端 / IDE 可直接展示 */
+    /** 入口端点分析（每个 Controller 方法一个） */
+    private List<EntryPoint> entryPoints;
+
+    /** Markdown 渲染版本 */
     private String markdown;
 
     @Data
@@ -46,5 +38,31 @@ public class ProjectReport {
         private int classCount;
         private int methodCount;
         private int relationCount;
+    }
+
+    @Data
+    @Builder
+    public static class EntryPoint {
+        /** 入口方法签名，如 PilotController.runAll(ScanRequest) */
+        private String signature;
+        /** 所属 Controller 类名 */
+        private String controller;
+        /** 入口方法的语义摘要 */
+        private String summary;
+        /** 调用链路：从入口出发依次调用的方法签名列表 */
+        private List<String> callChain;
+        /** 链路中涉及的关键类及其语义摘要 */
+        private List<InvolvedClass> involvedClasses;
+    }
+
+    @Data
+    @Builder
+    public static class InvolvedClass {
+        /** 类全限定名 */
+        private String qualifiedName;
+        /** 类的 Spring 角色（CONTROLLER/SERVICE/MAPPER 等） */
+        private String stereotype;
+        /** 类的语义摘要 */
+        private String summary;
     }
 }

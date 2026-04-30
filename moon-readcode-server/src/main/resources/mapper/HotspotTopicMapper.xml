@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luckymoon.moon_readcode_server.mapper.HotspotTopicMapper">
+
+    <resultMap id="BaseResultMap" type="com.luckymoon.moon_readcode_server.entity.HotspotTopic">
+        <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
+        <result column="topic_name" property="topicName"/>
+        <result column="question_count" property="questionCount"/>
+        <result column="representative_questions" property="representativeQuestions"/>
+        <result column="involved_modules" property="involvedModules"/>
+        <result column="analysis" property="analysis"/>
+        <result column="status" property="status"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, project_id, topic_name, question_count, representative_questions,
+        involved_modules, analysis, status, reject_reason, create_time, update_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO hotspot_topic (project_id, topic_name, question_count, representative_questions,
+            involved_modules, analysis, status, reject_reason, create_time, update_time)
+        VALUES (#{projectId}, #{topicName}, #{questionCount}, #{representativeQuestions},
+            #{involvedModules}, #{analysis}, #{status}, #{rejectReason}, NOW(), NOW())
+    </insert>
+
+    <update id="updateById">
+        UPDATE hotspot_topic
+        SET topic_name = #{topicName},
+            question_count = #{questionCount},
+            representative_questions = #{representativeQuestions},
+            involved_modules = #{involvedModules},
+            analysis = #{analysis},
+            status = #{status},
+            reject_reason = #{rejectReason},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM hotspot_topic WHERE id = #{id}
+    </select>
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM hotspot_topic WHERE project_id = #{projectId}
+        ORDER BY question_count DESC, create_time DESC
+    </select>
+
+    <select id="selectByProjectIdAndStatus" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM hotspot_topic
+        WHERE project_id = #{projectId} AND status = #{status}
+        ORDER BY question_count DESC
+    </select>
+
+    <delete id="deleteByProjectId">
+        DELETE FROM hotspot_topic WHERE project_id = #{projectId}
+    </delete>
+
+</mapper>

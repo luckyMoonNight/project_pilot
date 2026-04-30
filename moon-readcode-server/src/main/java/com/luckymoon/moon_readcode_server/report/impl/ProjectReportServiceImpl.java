@@ -17,31 +17,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * 报告生成默认实现：纯查询 + Markdown 渲染，不再触发 LLM 调用。
- *
- * 设计目标：让"还没建语义索引"的工程也能拿到一份基础架构报告；
- * 若已建索引，则把项目级摘要拼到报告头部，让结论更具可读性。
+ * 报告生成实现：以 Controller 入口为核心视角，输出分析结论和代码调用链路。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProjectReportServiceImpl implements ProjectReportService {
 
-    /** 单条调用链最大跳数，避免循环依赖时无限展开 */
-    private static final int MAX_FLOW_DEPTH = 6;
-    /** 输出的样例链路条数上限 */
-    private static final int MAX_FLOW_SAMPLES = 5;
+    private static final int MAX_FLOW_DEPTH = 8;
 
     private final CodeFileMapper codeFileMapper;
     private final CodeClassMapper codeClassMapper;
@@ -63,119 +55,118 @@ public class ProjectReportServiceImpl implements ProjectReportService {
                 .relationCount(relations.size())
                 .build();
 
-        Map<String, List<String>> moduleView = buildModuleView(classes);
-        Map<String, List<String>> stereotypeView = buildStereotypeView(classes);
-        List<List<String>> executionFlows = buildExecutionFlows(classes, methods, relations);
-
+        // 项目级摘要
         CodeSummary projectSummary = codeSummaryMapper.selectByTarget(projectId, "PROJECT", null);
         String summaryText = projectSummary == null ? null : projectSummary.getSummary();
 
-        String markdown = renderMarkdown(projectId, overview, moduleView, stereotypeView,
-                executionFlows, summaryText);
+        // 构建索引
+        Map<Long, CodeClass> classById = classes.stream()
+                .collect(Collectors.toMap(CodeClass::getId, c -> c));
+        Map<Long, CodeMethod> methodById = methods.stream()
+                .collect(Collectors.toMap(CodeMethod::getId, m -> m));
+        Map<Long, List<CodeRelation>> outEdges = new HashMap<>();
+        for (CodeRelation relation : relations) {
+            if ("METHOD_CALL".equals(relation.getRelationType()) && "METHOD".equals(relation.getFromType())) {
+                outEdges.computeIfAbsent(relation.getFromId(), k -> new ArrayList<>()).add(relation);
+            }
+        }
+        Map<String, List<CodeMethod>> methodByName = methods.stream()
+                .collect(Collectors.groupingBy(CodeMethod::getMethodName));
+
+        // 查找所有方法摘要，按 targetRef 索引
+        List<CodeSummary> methodSummaries = codeSummaryMapper.selectByProjectAndType(projectId, "METHOD");
+        Map<String, String> methodSummaryMap = new HashMap<>();
+        for (CodeSummary summary : methodSummaries) {
+            if (summary.getTargetRef() != null) {
+                methodSummaryMap.put(summary.getTargetRef(), summary.getSummary());
+            }
+        }
+
+        // 查找所有类摘要
+        List<CodeSummary> classSummaries = codeSummaryMapper.selectByProjectAndType(projectId, "CLASS");
+        Map<String, String> classSummaryMap = new HashMap<>();
+        for (CodeSummary summary : classSummaries) {
+            if (summary.getTargetRef() != null) {
+                classSummaryMap.put(summary.getTargetRef(), summary.getSummary());
+            }
+        }
+
+        // 构建入口分析
+        List<ProjectReport.EntryPoint> entryPoints = new ArrayList<>();
+        for (CodeMethod method : methods) {
+            CodeClass owner = classById.get(method.getClassId());
+            if (owner == null || !"CONTROLLER".equals(owner.getStereotype())) {
+                continue;
+            }
+
+            // 遍历调用链
+            List<String> callChain = new ArrayList<>();
+            Set<Long> visited = new HashSet<>();
+            Set<Long> involvedClassIds = new LinkedHashSet<>();
+            walkFlow(method, callChain, visited, involvedClassIds, outEdges, methodByName, methodById, 0);
+
+            // 收集链路中涉及的关键类
+            List<ProjectReport.InvolvedClass> involvedClasses = new ArrayList<>();
+            for (Long classId : involvedClassIds) {
+                CodeClass clazz = classById.get(classId);
+                if (clazz == null) continue;
+                String classSummary = classSummaryMap.get(clazz.getQualifiedName());
+                involvedClasses.add(ProjectReport.InvolvedClass.builder()
+                        .qualifiedName(clazz.getQualifiedName())
+                        .stereotype(clazz.getStereotype())
+                        .summary(classSummary)
+                        .build());
+            }
+
+            // 入口方法摘要
+            String entryMethodSummary = methodSummaryMap.get(method.getSignature());
+            if (entryMethodSummary == null) {
+                entryMethodSummary = methodSummaryMap.get(
+                        owner.getQualifiedName() + "#" + method.getMethodName());
+            }
+
+            entryPoints.add(ProjectReport.EntryPoint.builder()
+                    .signature(method.getSignature())
+                    .controller(owner.getQualifiedName())
+                    .summary(entryMethodSummary)
+                    .callChain(callChain)
+                    .involvedClasses(involvedClasses)
+                    .build());
+        }
+
+        String markdown = renderMarkdown(projectId, overview, summaryText, entryPoints);
 
         return ProjectReport.builder()
                 .projectId(projectId)
                 .overview(overview)
-                .moduleView(moduleView)
-                .stereotypeView(stereotypeView)
-                .executionFlows(executionFlows)
                 .projectSummary(summaryText)
+                .entryPoints(entryPoints)
                 .markdown(markdown)
                 .build();
     }
 
-    /* ---------------------------------------------------------------- */
-    /*                            子视图构建                             */
-    /* ---------------------------------------------------------------- */
-
-    private Map<String, List<String>> buildModuleView(List<CodeClass> classes) {
-        Map<String, List<String>> view = new TreeMap<>();
-        for (CodeClass c : classes) {
-            String pkg = c.getPackageName() == null ? "(default)" : c.getPackageName();
-            view.computeIfAbsent(pkg, k -> new ArrayList<>()).add(c.getQualifiedName());
-        }
-        view.values().forEach(list -> list.sort(Comparator.naturalOrder()));
-        return view;
-    }
-
-    private Map<String, List<String>> buildStereotypeView(List<CodeClass> classes) {
-        Map<String, List<String>> view = new LinkedHashMap<>();
-        // 固定输出顺序，方便阅读
-        for (String stereotype : List.of("CONTROLLER", "SERVICE", "MAPPER", "ENTITY",
-                "CONFIG", "COMPONENT", "OTHER")) {
-            view.put(stereotype, new ArrayList<>());
-        }
-        for (CodeClass c : classes) {
-            view.computeIfAbsent(c.getStereotype() == null ? "OTHER" : c.getStereotype(),
-                    k -> new ArrayList<>()).add(c.getQualifiedName());
-        }
-        // 移除空 stereotype 桶，避免噪音
-        view.entrySet().removeIf(e -> e.getValue().isEmpty());
-        view.values().forEach(list -> list.sort(Comparator.naturalOrder()));
-        return view;
-    }
-
-    /**
-     * 从 Controller 类的方法出发，沿 METHOD_CALL 关系做有限深度遍历，得到典型执行链路样例。
-     * 弱解析阶段 to_id 大概率为 null，这里用 to_ref 的方法名后缀去匹配本工程内的方法名做近似跳转。
-     */
-    private List<List<String>> buildExecutionFlows(List<CodeClass> classes,
-                                                   List<CodeMethod> methods,
-                                                   List<CodeRelation> relations) {
-        // 索引：classId -> CodeClass
-        Map<Long, CodeClass> classById = classes.stream()
-                .collect(Collectors.toMap(CodeClass::getId, c -> c));
-        // 索引：methodId -> 出边关系
-        Map<Long, List<CodeRelation>> outEdges = new HashMap<>();
-        for (CodeRelation r : relations) {
-            if ("METHOD_CALL".equals(r.getRelationType()) && "METHOD".equals(r.getFromType())) {
-                outEdges.computeIfAbsent(r.getFromId(), k -> new ArrayList<>()).add(r);
-            }
-        }
-        // 索引：方法名 -> 候选 CodeMethod 列表（同名重载/不同类同名都进来，用于近似跳转）
-        Map<String, List<CodeMethod>> methodByName = methods.stream()
-                .collect(Collectors.groupingBy(CodeMethod::getMethodName));
-        // 索引：methodId -> CodeMethod
-        Map<Long, CodeMethod> methodById = methods.stream()
-                .collect(Collectors.toMap(CodeMethod::getId, m -> m));
-
-        List<List<String>> flows = new ArrayList<>();
-        for (CodeMethod m : methods) {
-            if (flows.size() >= MAX_FLOW_SAMPLES) break;
-            CodeClass owner = classById.get(m.getClassId());
-            if (owner == null || !"CONTROLLER".equals(owner.getStereotype())) {
-                continue;
-            }
-            List<String> flow = new ArrayList<>();
-            Set<Long> visited = new HashSet<>();
-            walkFlow(m, flow, visited, outEdges, methodByName, methodById, 0);
-            if (flow.size() > 1) {
-                flows.add(flow);
-            }
-        }
-        return flows;
-    }
-
-    private void walkFlow(CodeMethod current, List<String> flow, Set<Long> visited,
+    private void walkFlow(CodeMethod current, List<String> callChain, Set<Long> visited,
+                          Set<Long> involvedClassIds,
                           Map<Long, List<CodeRelation>> outEdges,
                           Map<String, List<CodeMethod>> methodByName,
                           Map<Long, CodeMethod> methodById, int depth) {
         if (current == null || depth >= MAX_FLOW_DEPTH || !visited.add(current.getId())) {
             return;
         }
-        flow.add(current.getSignature());
+        callChain.add(current.getSignature());
+        if (current.getClassId() != null) {
+            involvedClassIds.add(current.getClassId());
+        }
+
         List<CodeRelation> edges = outEdges.getOrDefault(current.getId(), List.of());
         for (CodeRelation edge : edges) {
             CodeMethod next = resolveTarget(edge, methodByName, methodById);
-            if (next != null) {
-                walkFlow(next, flow, visited, outEdges, methodByName, methodById, depth + 1);
-                // 只走一条主分支，避免链路爆炸；若需要全图建议另起 graph dump 接口
-                return;
+            if (next != null && !visited.contains(next.getId())) {
+                walkFlow(next, callChain, visited, involvedClassIds, outEdges, methodByName, methodById, depth + 1);
             }
         }
     }
 
-    /** 关系目标解析：优先 to_id，否则按 to_ref 末尾的方法名去 methodByName 找候选 */
     private CodeMethod resolveTarget(CodeRelation edge,
                                      Map<String, List<CodeMethod>> methodByName,
                                      Map<Long, CodeMethod> methodById) {
@@ -185,65 +176,111 @@ public class ProjectReportServiceImpl implements ProjectReportService {
         String ref = edge.getToRef();
         if (ref == null || ref.isBlank()) return null;
         String name = ref.contains(".") ? ref.substring(ref.lastIndexOf('.') + 1) : ref;
-        // 去掉可能存在的括号
         int paren = name.indexOf('(');
         if (paren > 0) name = name.substring(0, paren);
         List<CodeMethod> candidates = methodByName.get(name);
         return candidates == null || candidates.isEmpty() ? null : candidates.get(0);
     }
 
-    /* ---------------------------------------------------------------- */
-    /*                          Markdown 渲染                            */
-    /* ---------------------------------------------------------------- */
-
     private String renderMarkdown(String projectId, ProjectReport.Overview overview,
-                                  Map<String, List<String>> moduleView,
-                                  Map<String, List<String>> stereotypeView,
-                                  List<List<String>> executionFlows,
-                                  String projectSummary) {
+                                  String projectSummary,
+                                  List<ProjectReport.EntryPoint> entryPoints) {
         StringBuilder sb = new StringBuilder();
-        sb.append("# 工程分析报告 - ").append(projectId).append("\n\n");
+        sb.append("## 工程分析报告 · ").append(projectId).append("\n\n");
 
-        sb.append("## 一、整体概览\n\n");
-        sb.append("- 文件数：").append(overview.getFileCount()).append("\n");
-        sb.append("- 类数：").append(overview.getClassCount()).append("\n");
-        sb.append("- 方法数：").append(overview.getMethodCount()).append("\n");
-        sb.append("- 关系数：").append(overview.getRelationCount()).append("\n\n");
+        // 概览（简洁一行）
+        sb.append("**规模**: ")
+                .append(overview.getFileCount()).append(" 文件 / ")
+                .append(overview.getClassCount()).append(" 类 / ")
+                .append(overview.getMethodCount()).append(" 方法 / ")
+                .append(overview.getRelationCount()).append(" 调用关系\n\n");
 
+        // 项目级语义分析
         if (projectSummary != null && !projectSummary.isBlank()) {
-            sb.append("## 二、项目语义摘要\n\n");
+            sb.append("### 📋 项目分析结论\n\n");
             sb.append(projectSummary).append("\n\n");
         }
 
-        sb.append("## 三、业务原型分布\n\n");
-        for (Map.Entry<String, List<String>> entry : stereotypeView.entrySet()) {
-            sb.append("### ").append(entry.getKey())
-                    .append(" (").append(entry.getValue().size()).append(")\n");
-            for (String name : entry.getValue()) {
-                sb.append("- `").append(name).append("`\n");
-            }
-            sb.append("\n");
-        }
-
-        sb.append("## 四、模块视图（按 package）\n\n");
-        for (Map.Entry<String, List<String>> entry : moduleView.entrySet()) {
-            sb.append("### `").append(entry.getKey()).append("`\n");
-            for (String name : entry.getValue()) {
-                sb.append("- ").append(name).append("\n");
-            }
-            sb.append("\n");
-        }
-
-        sb.append("## 五、典型执行链路样例\n\n");
-        if (executionFlows.isEmpty()) {
-            sb.append("_未识别到从 Controller 出发的典型链路（可能是非 Web 工程，或未运行 Phase 2 分析）_\n");
+        // 入口端点分析
+        sb.append("### 🚪 入口端点分析\n\n");
+        if (entryPoints.isEmpty()) {
+            sb.append("_未识别到 Controller 入口端点_\n\n");
         } else {
-            int idx = 1;
-            for (List<String> flow : executionFlows) {
-                sb.append("**链路 ").append(idx++).append("：**\n");
-                sb.append(String.join("\n  → ", flow)).append("\n\n");
+            for (int i = 0; i < entryPoints.size(); i++) {
+                ProjectReport.EntryPoint entry = entryPoints.get(i);
+                sb.append("#### ").append(i + 1).append(". `")
+                        .append(simplifySignature(entry.getSignature())).append("`\n\n");
+
+                // 入口方法分析结论
+                if (entry.getSummary() != null && !entry.getSummary().isBlank()) {
+                    sb.append(entry.getSummary()).append("\n\n");
+                }
+
+                // 调用链路
+                if (entry.getCallChain() != null && entry.getCallChain().size() > 1) {
+                    sb.append("**调用链路**:\n```\n");
+                    for (int j = 0; j < entry.getCallChain().size(); j++) {
+                        sb.append(j == 0 ? "" : "  → ");
+                        sb.append(simplifySignature(entry.getCallChain().get(j))).append("\n");
+                    }
+                    sb.append("```\n\n");
+                }
+
+                // 涉及的关键组件
+                if (entry.getInvolvedClasses() != null && !entry.getInvolvedClasses().isEmpty()) {
+                    sb.append("**涉及组件**:\n");
+                    for (ProjectReport.InvolvedClass clazz : entry.getInvolvedClasses()) {
+                        String shortName = clazz.getQualifiedName().contains(".")
+                                ? clazz.getQualifiedName().substring(clazz.getQualifiedName().lastIndexOf('.') + 1)
+                                : clazz.getQualifiedName();
+                        sb.append("- **").append(shortName).append("**");
+                        if (clazz.getStereotype() != null) {
+                            sb.append(" `").append(clazz.getStereotype()).append("`");
+                        }
+                        if (clazz.getSummary() != null && !clazz.getSummary().isBlank()) {
+                            // 取摘要第一句话
+                            String firstLine = clazz.getSummary().split("\n")[0].trim();
+                            if (firstLine.length() > 100) {
+                                firstLine = firstLine.substring(0, 100) + "...";
+                            }
+                            sb.append(" — ").append(firstLine);
+                        }
+                        sb.append("\n");
+                    }
+                    sb.append("\n");
+                }
+
+                if (i < entryPoints.size() - 1) {
+                    sb.append("---\n\n");
+                }
             }
         }
         return sb.toString();
+    }
+
+    /** 简化方法签名：去掉包名前缀，只保留 ClassName.methodName(ParamTypes) */
+    private String simplifySignature(String signature) {
+        if (signature == null) return "";
+        int hashIdx = signature.lastIndexOf('#');
+        if (hashIdx > 0) {
+            String classPart = signature.substring(0, hashIdx);
+            String methodPart = signature.substring(hashIdx + 1);
+            String shortClass = classPart.contains(".")
+                    ? classPart.substring(classPart.lastIndexOf('.') + 1) : classPart;
+            return shortClass + "." + methodPart;
+        }
+        // 如果没有 # 分隔符，尝试简化全限定名
+        if (signature.contains("(")) {
+            int parenIdx = signature.indexOf('(');
+            String beforeParen = signature.substring(0, parenIdx);
+            String afterParen = signature.substring(parenIdx);
+            if (beforeParen.contains(".")) {
+                String[] parts = beforeParen.split("\\.");
+                if (parts.length >= 2) {
+                    return parts[parts.length - 2] + "." + parts[parts.length - 1] + afterParen;
+                }
+            }
+        }
+        return signature;
     }
 }

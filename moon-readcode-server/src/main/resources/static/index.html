@@ -5,109 +5,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project Pilot · 代码理解助手</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif; }
-        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-        .typing::after {
-            content: '▍';
-            animation: blink 1s steps(2) infinite;
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50:'#f0f5ff', 100:'#dbe8fe', 200:'#bfd3fe', 400:'#6d9eff', 500:'#4f7df9', 600:'#3b5de7', 700:'#2d46c8' }
+                    }
+                }
+            }
         }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+        .scrollbar-thin::-webkit-scrollbar { width: 5px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .typing::after { content: '▍'; animation: blink .8s steps(2) infinite; }
         @keyframes blink { 50% { opacity: 0; } }
-        details > summary { cursor: pointer; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .msg-animate { animation: fadeUp .25s ease-out; }
+        details > summary { cursor: pointer; list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
         pre { white-space: pre-wrap; word-break: break-word; }
+        .glass { background: rgba(255,255,255,.72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .input-area { background: rgba(255,255,255,.85); backdrop-filter: blur(8px); }
     </style>
 </head>
-<body class="bg-slate-100 min-h-screen">
+<body class="bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 min-h-screen">
 
-<div class="max-w-6xl mx-auto p-6">
+<div class="max-w-6xl mx-auto px-4 sm:px-6 py-5">
 
     <!-- Header -->
-    <header class="mb-6">
-        <h1 class="text-3xl font-bold text-slate-800">🛩️ Project Pilot</h1>
-        <p class="text-slate-500 mt-1">代码理解助手 · 扫描你的 Java 工程，与之对话</p>
+    <header class="mb-5 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center text-white text-lg shadow-lg shadow-brand-500/25">🛩</div>
+        <div>
+            <h1 class="text-xl font-bold text-slate-800 tracking-tight">Project Pilot</h1>
+            <p class="text-xs text-slate-400">代码理解助手 · 扫描你的 Java 工程，与之对话</p>
+        </div>
     </header>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
         <!-- 左侧：扫描工程 -->
-        <aside class="lg:col-span-1 bg-white rounded-xl shadow-sm p-5 h-fit">
-            <h2 class="font-semibold text-lg text-slate-700 mb-4">① 扫描工程</h2>
+        <aside class="lg:col-span-4 xl:col-span-3 glass rounded-2xl shadow-sm ring-1 ring-slate-200/60 p-5 h-fit">
+            <h2 class="font-semibold text-sm text-slate-500 uppercase tracking-wide mb-4">工程配置</h2>
 
-            <label class="block text-sm text-slate-600 mb-1">工程路径（容器内）</label>
+            <label class="block text-xs font-medium text-slate-500 mb-1">工程路径</label>
             <input id="basePath" type="text" value="/workspace"
-                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-            <p class="text-xs text-slate-400 mt-1">默认 <code>/workspace</code>，对应宿主机挂载目录</p>
+                   class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-400/50 focus:border-brand-400 transition">
+            <p class="text-[11px] text-slate-400 mt-1">对应 docker compose 挂载的目录</p>
 
-            <label class="block text-sm text-slate-600 mb-1 mt-3">工程标识 (projectId)</label>
+            <label class="block text-xs font-medium text-slate-500 mb-1 mt-3">工程标识</label>
             <input id="projectId" type="text" value="my-project"
-                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                   class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-400/50 focus:border-brand-400 transition">
 
             <button id="btnRunAll" onclick="runAll()"
-                    class="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white py-2 rounded-lg font-medium transition">
+                    class="w-full mt-4 bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 disabled:from-slate-300 disabled:to-slate-400 text-white py-2.5 rounded-xl font-medium transition-all shadow-md shadow-brand-500/20 hover:shadow-lg hover:shadow-brand-500/30 active:scale-[0.98]">
                 🚀 一键扫描 + 分析 + 索引
             </button>
 
-            <div id="runStatus" class="mt-3 text-sm text-slate-500 hidden"></div>
+            <div id="runStatus" class="mt-3 text-xs text-slate-500 hidden"></div>
 
-            <hr class="my-5 border-slate-200">
-
-            <h3 class="font-medium text-sm text-slate-600 mb-2">分步执行</h3>
-            <div class="space-y-2">
-                <button onclick="step('scan')" class="w-full text-sm bg-slate-100 hover:bg-slate-200 py-1.5 rounded">
-                    1️⃣ 仅扫描
-                </button>
-                <button onclick="step('analyze')" class="w-full text-sm bg-slate-100 hover:bg-slate-200 py-1.5 rounded">
-                    2️⃣ 仅 AST 分析
-                </button>
-                <button onclick="step('index')" class="w-full text-sm bg-slate-100 hover:bg-slate-200 py-1.5 rounded">
-                    3️⃣ 仅语义索引
-                </button>
-                <button onclick="loadReport()" class="w-full text-sm bg-emerald-100 hover:bg-emerald-200 py-1.5 rounded">
-                    📊 查看分析报告
-                </button>
-            </div>
-
-            <hr class="my-5 border-slate-200">
-
-            <h3 class="font-medium text-sm text-slate-600 mb-2">问答过滤</h3>
-            <select id="targetType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                <option value="">不过滤（全部）</option>
-                <option value="METHOD">仅方法</option>
-                <option value="CLASS">仅类</option>
-                <option value="FILE">仅文件</option>
-                <option value="PROJECT">仅项目级摘要</option>
-            </select>
-        </aside>
-
-        <!-- 右侧：聊天区 -->
-        <main class="lg:col-span-2 bg-white rounded-xl shadow-sm flex flex-col" style="height: 80vh;">
-            <div class="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-                <h2 class="font-semibold text-slate-700">② 与代码对话</h2>
-                <button onclick="clearChat()" class="text-xs text-slate-400 hover:text-slate-600">清空对话</button>
-            </div>
-
-            <div id="chatBox" class="flex-1 overflow-y-auto px-5 py-4 space-y-4 scrollbar-thin">
-                <div class="text-center text-slate-400 text-sm mt-10">
-                    👋 欢迎，先在左侧扫描一个工程，再来问我问题<br>
-                    试试问："这个项目里有哪些 Controller？" 或 "用户登录的执行链路是什么？"
+            <div class="mt-5 pt-4 border-t border-slate-200/60">
+                <h3 class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">分步执行</h3>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="step('scan')" class="text-xs bg-white hover:bg-slate-50 border border-slate-200 py-2 rounded-lg transition active:scale-[0.97]">1️⃣ 扫描</button>
+                    <button onclick="step('analyze')" class="text-xs bg-white hover:bg-slate-50 border border-slate-200 py-2 rounded-lg transition active:scale-[0.97]">2️⃣ AST</button>
+                    <button onclick="step('index')" class="text-xs bg-white hover:bg-slate-50 border border-slate-200 py-2 rounded-lg transition active:scale-[0.97]">3️⃣ 索引</button>
+                    <button onclick="loadReport()" class="text-xs bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 py-2 rounded-lg transition active:scale-[0.97]">📊 报告</button>
                 </div>
             </div>
 
-            <div class="border-t border-slate-200 p-4 flex gap-2">
-                <input id="qaInput" type="text" placeholder="输入你的问题，回车发送..."
-                       onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();ask();}"
-                       class="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                <button id="btnAsk" onclick="ask()"
-                        class="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-5 py-2 rounded-lg font-medium transition">
-                    发送
-                </button>
+            <div class="mt-4 pt-4 border-t border-slate-200/60">
+                <h3 class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">🔥 热点知识沉淀</h3>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="analyzeHotspot()" class="text-xs bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 py-2 rounded-lg transition active:scale-[0.97]">🔥 分析热点</button>
+                    <button onclick="loadTopics()" class="text-xs bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 py-2 rounded-lg transition active:scale-[0.97]">📋 审核主题</button>
+                    <button onclick="loadDocuments()" class="text-xs bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 py-2 rounded-lg transition active:scale-[0.97]" style="grid-column: span 2;">📄 查看知识文档</button>
+                </div>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-slate-200/60">
+                <label class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1 block">问答过滤</label>
+                <select id="targetType" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-400/50 transition">
+                    <option value="">全部</option>
+                    <option value="METHOD">方法</option>
+                    <option value="CLASS">类</option>
+                    <option value="FILE">文件</option>
+                    <option value="PROJECT">项目摘要</option>
+                </select>
+            </div>
+        </aside>
+
+        <!-- 右侧：聊天区 -->
+        <main class="lg:col-span-8 xl:col-span-9 glass rounded-2xl shadow-sm ring-1 ring-slate-200/60 flex flex-col" style="height: 82vh;">
+            <div class="px-5 py-3 flex items-center justify-between border-b border-slate-200/60">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <h2 class="font-semibold text-sm text-slate-600">与代码对话</h2>
+                </div>
+                <button onclick="clearChat()" class="text-[11px] text-slate-400 hover:text-slate-600 transition">清空</button>
+            </div>
+
+            <div id="chatBox" class="flex-1 overflow-y-auto px-5 py-4 space-y-5 scrollbar-thin">
+                <div class="text-center mt-16">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-brand-100 to-indigo-100 flex items-center justify-center text-3xl">💬</div>
+                    <p class="text-slate-400 text-sm">先在左侧扫描一个工程，再来问我问题</p>
+                    <p class="text-slate-300 text-xs mt-1">试试："这个项目里有哪些 Controller？"</p>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-200/60 p-3 input-area rounded-b-2xl">
+                <div class="flex gap-2 items-center">
+                    <input id="qaInput" type="text" placeholder="输入问题，按回车发送..."
+                           onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();ask();}"
+                           class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400 transition placeholder:text-slate-300">
+                    <button id="btnAsk" onclick="ask()"
+                            class="bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 disabled:from-slate-300 disabled:to-slate-400 text-white px-5 py-2.5 rounded-xl font-medium text-sm transition-all shadow-md shadow-brand-500/20 active:scale-[0.97]">
+                        发送
+                    </button>
+                </div>
             </div>
         </main>
     </div>
 
-    <footer class="mt-6 text-center text-xs text-slate-400">
-        Project Pilot · Powered by Spring Boot + Chroma + DashScope
+    <footer class="mt-5 text-center text-[11px] text-slate-300">
+        Project Pilot · Powered by Spring Boot + Chroma + Ollama
     </footer>
 </div>
 
@@ -191,10 +216,98 @@
             if (!resp.ok) throw new Error(await resp.text());
             const data = await resp.json();
             setRunStatus('✅ 报告已生成，请见对话区', 'green');
-            appendAssistantMsg(data.markdown || '报告为空', []);
+            appendReportMsg(data);
         } catch (e) {
             setRunStatus('❌ 报告生成失败：' + e.message, 'red');
         }
+    }
+
+    function appendReportMsg(report) {
+        const box = document.getElementById('chatBox');
+        const el = document.createElement('div');
+        el.className = 'flex justify-start msg-animate';
+
+        const ov = report.overview || {};
+        let html = `
+            <div class="flex items-start gap-2 max-w-[90%]">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm mt-0.5">📊</div>
+                <div class="bg-white/80 ring-1 ring-slate-200/60 text-slate-700 px-4 py-3 rounded-2xl rounded-tl-md shadow-sm w-full">
+
+                    <div class="text-sm font-semibold text-slate-700 mb-2">工程分析报告 · ${escapeHtml(report.projectId || '')}</div>
+
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <span class="text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg">${ov.fileCount || 0} 文件</span>
+                        <span class="text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg">${ov.classCount || 0} 类</span>
+                        <span class="text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg">${ov.methodCount || 0} 方法</span>
+                        <span class="text-[11px] bg-slate-100 px-2.5 py-1 rounded-lg">${ov.relationCount || 0} 调用关系</span>
+                    </div>`;
+
+        // 项目级分析结论
+        if (report.projectSummary) {
+            html += `
+                    <details open class="mb-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 ring-1 ring-amber-200/50 overflow-hidden">
+                        <summary class="px-3 py-2 text-xs font-medium text-amber-700 select-none">📋 项目分析结论</summary>
+                        <div class="px-3 py-2 text-xs text-slate-600 border-t border-amber-200/50 whitespace-pre-wrap leading-relaxed">${escapeHtml(report.projectSummary)}</div>
+                    </details>`;
+        }
+
+        // 入口端点分析
+        const entries = report.entryPoints || [];
+        if (entries.length > 0) {
+            html += `<div class="text-xs font-semibold text-slate-600 mb-2">🚪 入口端点（${entries.length} 个）</div>`;
+            entries.forEach((entry, idx) => {
+                const shortSig = entry.signature ? entry.signature.split('.').slice(-2).join('.') : '';
+                html += `
+                    <details class="mb-2 rounded-xl ring-1 ring-slate-200/60 bg-white overflow-hidden">
+                        <summary class="px-3 py-2 text-xs text-slate-700 font-medium select-none flex items-center gap-2">
+                            <span class="w-5 h-5 rounded-md bg-brand-100 text-brand-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0">${idx + 1}</span>
+                            <code class="text-brand-600 font-mono text-[11px]">${escapeHtml(shortSig)}</code>
+                        </summary>
+                        <div class="px-3 py-2 space-y-2 text-xs border-t border-slate-100">`;
+
+                // 入口方法分析
+                if (entry.summary) {
+                    html += `<div class="text-slate-600 whitespace-pre-wrap leading-relaxed">${escapeHtml(entry.summary)}</div>`;
+                }
+
+                // 调用链路
+                if (entry.callChain && entry.callChain.length > 1) {
+                    html += `<div class="font-semibold text-slate-500 mt-1">调用链路:</div>
+                        <div class="bg-slate-50 rounded-lg p-2 font-mono text-[11px] text-slate-600 leading-loose">`;
+                    entry.callChain.forEach((step, j) => {
+                        const shortStep = step.split('.').slice(-2).join('.');
+                        const indent = j === 0 ? '' : '  → ';
+                        html += `<div>${indent}${escapeHtml(shortStep)}</div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                // 涉及的组件
+                if (entry.involvedClasses && entry.involvedClasses.length > 0) {
+                    html += `<div class="font-semibold text-slate-500 mt-1">涉及组件:</div>`;
+                    entry.involvedClasses.forEach(cls => {
+                        const shortName = cls.qualifiedName ? cls.qualifiedName.split('.').pop() : '';
+                        const stereotype = cls.stereotype ? cls.stereotype : '';
+                        const summaryLine = cls.summary ? cls.summary.split('\n')[0].substring(0, 100) : '';
+                        html += `
+                            <div class="flex items-start gap-1.5 mt-1">
+                                <span class="inline-block bg-brand-100 text-brand-600 text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 mt-px">${escapeHtml(stereotype)}</span>
+                                <span class="text-slate-700 font-medium">${escapeHtml(shortName)}</span>
+                                ${summaryLine ? `<span class="text-slate-400">— ${escapeHtml(summaryLine)}</span>` : ''}
+                            </div>`;
+                    });
+                }
+
+                html += `</div></details>`;
+            });
+        } else {
+            html += `<div class="text-xs text-slate-400 italic">未识别到 Controller 入口端点</div>`;
+        }
+
+        html += `</div></div>`;
+        el.innerHTML = html;
+        box.appendChild(el);
+        box.scrollTop = box.scrollHeight;
     }
 
     async function ask() {
@@ -221,9 +334,9 @@
             });
             if (!resp.ok) throw new Error(await resp.text());
             const data = await resp.json();
-            placeholder.update(data.answer || '(无回答)', data.references || []);
+            placeholder.update(data.answer || '(无回答)', data.references || [], data.thinkingProcess, data.costMillis);
         } catch (e) {
-            placeholder.update('❌ 出错：' + e.message, []);
+            placeholder.update('❌ 出错：' + e.message, [], null, 0);
         } finally {
             btn.disabled = false;
             input.focus();
@@ -233,10 +346,11 @@
     function appendUserMsg(text) {
         const box = document.getElementById('chatBox');
         const el = document.createElement('div');
-        el.className = 'flex justify-end';
+        el.className = 'flex justify-end msg-animate';
         el.innerHTML = `
-            <div class="bg-blue-600 text-white px-4 py-2 rounded-2xl max-w-[80%] whitespace-pre-wrap">
-                ${escapeHtml(text)}
+            <div class="flex items-end gap-2 max-w-[70%]">
+                <div class="bg-gradient-to-br from-brand-500 to-indigo-600 text-white text-sm px-4 py-2 rounded-2xl rounded-br-md shadow-sm shadow-brand-500/15 whitespace-pre-wrap leading-relaxed">${escapeHtml(text)}</div>
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-400 to-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs font-bold shadow-sm">U</div>
             </div>`;
         box.appendChild(el);
         box.scrollTop = box.scrollHeight;
@@ -245,8 +359,8 @@
     function appendSystemMsg(html) {
         const box = document.getElementById('chatBox');
         const el = document.createElement('div');
-        el.className = 'flex justify-center';
-        el.innerHTML = `<div class="text-xs bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full">${html}</div>`;
+        el.className = 'flex justify-center msg-animate';
+        el.innerHTML = `<div class="text-[11px] bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full ring-1 ring-emerald-200/50">${html}</div>`;
         box.appendChild(el);
         box.scrollTop = box.scrollHeight;
     }
@@ -254,47 +368,346 @@
     function appendAssistantMsg(text, refs, isLoading = false) {
         const box = document.getElementById('chatBox');
         const el = document.createElement('div');
-        el.className = 'flex justify-start';
+        el.className = 'flex justify-start msg-animate';
         const id = 'msg-' + Date.now();
         el.innerHTML = `
-            <div class="bg-slate-100 text-slate-800 px-4 py-3 rounded-2xl max-w-[85%]">
-                <div id="${id}-text" class="${isLoading ? 'typing' : ''} whitespace-pre-wrap leading-relaxed">${escapeHtml(text)}</div>
-                <div id="${id}-refs"></div>
+            <div class="flex items-start gap-2 max-w-[85%]">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm mt-0.5">AI</div>
+                <div class="bg-white/80 ring-1 ring-slate-200/60 text-slate-700 px-4 py-3 rounded-2xl rounded-tl-md shadow-sm">
+                    <div id="${id}-thinking"></div>
+                    <div id="${id}-text" class="${isLoading ? 'typing' : ''} whitespace-pre-wrap leading-relaxed text-sm">${escapeHtml(text)}</div>
+                    <div id="${id}-refs"></div>
+                </div>
             </div>`;
         box.appendChild(el);
         box.scrollTop = box.scrollHeight;
         if (refs && refs.length) renderRefs(id, refs);
 
         return {
-            update(newText, newRefs) {
+            update(newText, newRefs, thinking, costMillis) {
                 const t = document.getElementById(id + '-text');
                 t.classList.remove('typing');
                 t.textContent = newText;
+                if (thinking) renderThinking(id, thinking, costMillis);
                 if (newRefs && newRefs.length) renderRefs(id, newRefs);
                 box.scrollTop = box.scrollHeight;
             }
         };
     }
 
+    function renderThinking(msgId, tp, costMillis) {
+        const wrap = document.getElementById(msgId + '-thinking');
+        if (!wrap || !tp) return;
+
+        const contextPreview = tp.context && tp.context.length > 500
+            ? tp.context.substring(0, 500) + '\n... (共 ' + tp.contextLengthChars + ' 字符)'
+            : (tp.context || '(无上下文)');
+
+        wrap.innerHTML = `
+            <details class="mb-3 rounded-xl bg-gradient-to-r from-violet-50 to-blue-50 ring-1 ring-violet-200/50 overflow-hidden">
+                <summary class="px-3 py-2 text-xs font-medium text-violet-700 select-none flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    思考过程
+                    <span class="ml-auto text-[10px] text-violet-400 font-normal">
+                        检索 ${tp.retrievalMillis}ms · LLM ${tp.llmMillis}ms · 总计 ${costMillis}ms
+                    </span>
+                </summary>
+                <div class="px-3 py-3 space-y-3 text-xs border-t border-violet-200/50">
+
+                    <div class="flex items-start gap-2">
+                        <span class="text-base leading-none mt-px">🔍</span>
+                        <div class="flex-1">
+                            <div class="font-semibold text-slate-600 mb-1.5">向量检索</div>
+                            <div class="flex flex-wrap gap-1.5">
+                                <span class="inline-flex items-center bg-white px-2 py-0.5 rounded-md ring-1 ring-slate-200/60 text-slate-500">过滤: ${escapeHtml(tp.retrievalFilter || '无')}</span>
+                                <span class="inline-flex items-center bg-white px-2 py-0.5 rounded-md ring-1 ring-slate-200/60 text-slate-500">命中 ${tp.retrievalHits} 条</span>
+                                <span class="inline-flex items-center bg-white px-2 py-0.5 rounded-md ring-1 ring-slate-200/60 text-slate-500">${tp.retrievalMillis}ms</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start gap-2">
+                        <span class="text-base leading-none mt-px">📋</span>
+                        <div class="flex-1">
+                            <div class="font-semibold text-slate-600 mb-1.5">构造上下文</div>
+                            <pre class="bg-white p-2.5 rounded-lg ring-1 ring-slate-200/60 text-[11px] text-slate-500 max-h-36 overflow-y-auto scrollbar-thin whitespace-pre-wrap leading-relaxed">${escapeHtml(contextPreview)}</pre>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start gap-2">
+                        <span class="text-base leading-none mt-px">🤖</span>
+                        <div class="flex-1">
+                            <div class="font-semibold text-slate-600 mb-1.5">LLM 生成</div>
+                            <div class="flex flex-wrap gap-1.5">
+                                <span class="inline-flex items-center bg-white px-2 py-0.5 rounded-md ring-1 ring-slate-200/60 text-slate-500">上下文 ${tp.contextLengthChars} 字符</span>
+                                <span class="inline-flex items-center bg-white px-2 py-0.5 rounded-md ring-1 ring-slate-200/60 text-slate-500">${tp.llmMillis}ms</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <details class="rounded-lg ring-1 ring-slate-200/60 bg-white overflow-hidden">
+                        <summary class="px-2.5 py-1.5 text-[11px] text-slate-400">System Prompt</summary>
+                        <pre class="px-2.5 py-2 text-[11px] text-slate-500 border-t border-slate-100 whitespace-pre-wrap">${escapeHtml(tp.systemPrompt || '')}</pre>
+                    </details>
+                </div>
+            </details>
+        `;
+    }
+
     function renderRefs(msgId, refs) {
         const wrap = document.getElementById(msgId + '-refs');
         if (!wrap) return;
         const items = refs.map((r, i) => `
-            <details class="mt-2 border border-slate-200 rounded-lg bg-white">
-                <summary class="px-3 py-1.5 text-xs text-slate-600">
-                    📎 引用 ${i + 1} · <span class="text-blue-600">${r.targetType}</span>
-                    · ${escapeHtml(r.targetRef || '')}
-                    · 相关度 ${(r.score * 100).toFixed(1)}%
+            <details class="mt-1.5 rounded-lg ring-1 ring-slate-200/60 bg-white overflow-hidden">
+                <summary class="px-3 py-1.5 text-[11px] text-slate-500 flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded bg-brand-100 text-brand-600 flex items-center justify-center text-[10px] font-bold">${i + 1}</span>
+                    <span class="font-medium text-brand-600">${r.targetType}</span>
+                    <span class="text-slate-400">·</span>
+                    <span class="truncate">${escapeHtml(r.targetRef || '')}</span>
+                    <span class="ml-auto text-[10px] text-slate-400">${(r.score * 100).toFixed(1)}%</span>
                 </summary>
-                <pre class="px-3 py-2 text-xs text-slate-600 border-t border-slate-100">${escapeHtml(r.snippet || '')}</pre>
+                <pre class="px-3 py-2 text-[11px] text-slate-500 border-t border-slate-100 leading-relaxed">${escapeHtml(r.snippet || '')}</pre>
             </details>
         `).join('');
-        wrap.innerHTML = `<div class="mt-3 text-xs text-slate-500">📚 共 ${refs.length} 条依据</div>${items}`;
+        wrap.innerHTML = `<div class="mt-3 text-[11px] text-slate-400 flex items-center gap-1">📚 ${refs.length} 条检索依据</div>${items}`;
     }
 
     function clearChat() {
         document.getElementById('chatBox').innerHTML = `
-            <div class="text-center text-slate-400 text-sm mt-10">对话已清空，重新开始 ✨</div>`;
+            <div class="text-center mt-16">
+                <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-brand-100 to-indigo-100 flex items-center justify-center text-3xl">✨</div>
+                <p class="text-slate-400 text-sm">对话已清空，重新开始</p>
+            </div>`;
+    }
+
+    /* ================================================================ */
+    /*                     热点分析 & 文档沉淀                           */
+    /* ================================================================ */
+
+    async function analyzeHotspot() {
+        setRunStatus('正在分析热点问题...', 'slate');
+        try {
+            const resp = await fetch(`${API_BASE}/api/pilot/hotspot/analyze?projectId=${encodeURIComponent(getProjectId())}`, {method: 'POST'});
+            if (!resp.ok) throw new Error(await resp.text());
+            const data = await resp.json();
+            setRunStatus(`✅ ${data.message}`, 'green');
+            if (data.topics && data.topics.length > 0) {
+                renderTopics(data.topics);
+            } else {
+                appendSystemMsg(data.message);
+            }
+        } catch (e) {
+            setRunStatus('❌ 热点分析失败：' + e.message, 'red');
+        }
+    }
+
+    async function loadTopics() {
+        setRunStatus('正在加载热点主题...', 'slate');
+        try {
+            const resp = await fetch(`${API_BASE}/api/pilot/hotspot/topics?projectId=${encodeURIComponent(getProjectId())}`);
+            if (!resp.ok) throw new Error(await resp.text());
+            const topics = await resp.json();
+            setRunStatus(`✅ 加载 ${topics.length} 个主题`, 'green');
+            if (topics.length > 0) {
+                renderTopics(topics);
+            } else {
+                appendSystemMsg('暂无热点主题，请先进行问答积累后再分析');
+            }
+        } catch (e) {
+            setRunStatus('❌ 加载失败：' + e.message, 'red');
+        }
+    }
+
+    function renderTopics(topics) {
+        const box = document.getElementById('chatBox');
+        const el = document.createElement('div');
+        el.className = 'flex justify-start msg-animate';
+
+        let html = `
+            <div class="flex items-start gap-2 max-w-[90%] w-full">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm mt-0.5">🔥</div>
+                <div class="bg-white/80 ring-1 ring-slate-200/60 text-slate-700 px-4 py-3 rounded-2xl rounded-tl-md shadow-sm w-full">
+                    <div class="text-sm font-semibold text-slate-700 mb-3">热点问题分析（${topics.length} 个主题）</div>`;
+
+        topics.forEach((topic, idx) => {
+            const statusColor = {
+                'PENDING': 'bg-amber-100 text-amber-700',
+                'APPROVED': 'bg-emerald-100 text-emerald-700',
+                'REJECTED': 'bg-red-100 text-red-700',
+                'REVISED': 'bg-blue-100 text-blue-700'
+            }[topic.status] || 'bg-slate-100 text-slate-600';
+
+            const statusLabel = {
+                'PENDING': '待审核', 'APPROVED': '已通过', 'REJECTED': '已驳回', 'REVISED': '已修正'
+            }[topic.status] || topic.status;
+
+            const questions = topic.representativeQuestions || [];
+            const modules = topic.involvedModules || [];
+
+            html += `
+                <details class="mb-2 rounded-xl ring-1 ring-slate-200/60 bg-white overflow-hidden" ${idx === 0 ? 'open' : ''}>
+                    <summary class="px-3 py-2.5 text-xs text-slate-700 font-medium select-none flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center text-[10px] font-bold flex-shrink-0">${idx + 1}</span>
+                        <span class="flex-1">${escapeHtml(topic.topicName)}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full ${statusColor} font-medium">${statusLabel}</span>
+                        <span class="text-[10px] text-slate-400">被问 ${topic.questionCount} 次</span>
+                    </summary>
+                    <div class="px-3 py-3 space-y-2.5 text-xs border-t border-slate-100">`;
+
+            // 代表性问题
+            if (questions.length > 0) {
+                html += `<div class="font-semibold text-slate-500">代表性问题:</div>
+                    <ul class="list-disc pl-4 text-slate-600 space-y-0.5">`;
+                questions.forEach(q => { html += `<li>${escapeHtml(q)}</li>`; });
+                html += `</ul>`;
+            }
+
+            // 涉及模块
+            if (modules.length > 0) {
+                html += `<div class="font-semibold text-slate-500 mt-1">涉及模块:</div>
+                    <div class="flex flex-wrap gap-1">`;
+                modules.forEach(m => {
+                    html += `<span class="bg-brand-50 text-brand-600 text-[10px] px-2 py-0.5 rounded-md ring-1 ring-brand-200/50">${escapeHtml(m)}</span>`;
+                });
+                html += `</div>`;
+            }
+
+            // 分析结论
+            if (topic.analysis) {
+                html += `<div class="font-semibold text-slate-500 mt-1">分析结论:</div>
+                    <div class="text-slate-600 whitespace-pre-wrap leading-relaxed bg-slate-50 rounded-lg p-2">${escapeHtml(topic.analysis)}</div>`;
+            }
+
+            // 驳回原因
+            if (topic.status === 'REJECTED' && topic.rejectReason) {
+                html += `<div class="bg-red-50 text-red-600 rounded-lg p-2 text-[11px]">❌ 驳回原因：${escapeHtml(topic.rejectReason)}</div>`;
+            }
+
+            // 操作按钮（仅 PENDING 状态显示）
+            if (topic.status === 'PENDING') {
+                html += `
+                    <div class="flex gap-2 mt-2 pt-2 border-t border-slate-100">
+                        <button onclick="approveTopic(${topic.id})" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs py-1.5 rounded-lg transition active:scale-[0.97]">✅ 通过并生成文档</button>
+                        <button onclick="promptReject(${topic.id})" class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs py-1.5 rounded-lg transition active:scale-[0.97]">❌ 驳回</button>
+                    </div>`;
+            }
+
+            // 已通过且有文档
+            if ((topic.status === 'APPROVED' || topic.status === 'REVISED') && topic.documentId) {
+                html += `
+                    <div class="flex gap-2 mt-2 pt-2 border-t border-slate-100">
+                        <button onclick="viewDocument(${topic.documentId})" class="flex-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs py-1.5 rounded-lg transition active:scale-[0.97]">📄 查看文档</button>
+                    </div>`;
+            }
+
+            html += `</div></details>`;
+        });
+
+        html += `</div></div>`;
+        el.innerHTML = html;
+        box.appendChild(el);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function approveTopic(topicId) {
+        setRunStatus('正在审核通过并生成文档...', 'slate');
+        try {
+            const resp = await fetch(`${API_BASE}/api/pilot/hotspot/topics/${topicId}/approve`, {method: 'POST'});
+            if (!resp.ok) throw new Error(await resp.text());
+            const doc = await resp.json();
+            setRunStatus('✅ 文档已生成', 'green');
+            renderDocument(doc);
+        } catch (e) {
+            setRunStatus('❌ 审核失败：' + e.message, 'red');
+        }
+    }
+
+    async function promptReject(topicId) {
+        const reason = prompt('请输入驳回原因（说明分析哪里有偏差）：');
+        if (reason === null) return;
+        setRunStatus('正在驳回...', 'slate');
+        try {
+            const resp = await fetch(`${API_BASE}/api/pilot/hotspot/topics/${topicId}/reject`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({reason: reason})
+            });
+            if (!resp.ok) throw new Error(await resp.text());
+            setRunStatus('✅ 已驳回', 'green');
+            appendSystemMsg(`热点主题已驳回，原因：${escapeHtml(reason)}`);
+            loadTopics();
+        } catch (e) {
+            setRunStatus('❌ 驳回失败：' + e.message, 'red');
+        }
+    }
+
+    async function loadDocuments() {
+        setRunStatus('正在加载知识文档...', 'slate');
+        try {
+            const resp = await fetch(`${API_BASE}/api/pilot/hotspot/documents?projectId=${encodeURIComponent(getProjectId())}`);
+            if (!resp.ok) throw new Error(await resp.text());
+            const docs = await resp.json();
+            setRunStatus(`✅ 加载 ${docs.length} 篇文档`, 'green');
+            if (docs.length > 0) {
+                docs.forEach(doc => renderDocument(doc));
+            } else {
+                appendSystemMsg('暂无已生成的知识文档');
+            }
+        } catch (e) {
+            setRunStatus('❌ 加载失败：' + e.message, 'red');
+        }
+    }
+
+    async function viewDocument(docId) {
+        setRunStatus('正在加载文档...', 'slate');
+        try {
+            const resp = await fetch(`${API_BASE}/api/pilot/hotspot/documents/${docId}`);
+            if (!resp.ok) throw new Error(await resp.text());
+            const doc = await resp.json();
+            setRunStatus('✅ 文档已加载', 'green');
+            renderDocument(doc);
+        } catch (e) {
+            setRunStatus('❌ 加载失败：' + e.message, 'red');
+        }
+    }
+
+    function renderDocument(doc) {
+        const box = document.getElementById('chatBox');
+        const el = document.createElement('div');
+        el.className = 'flex justify-start msg-animate';
+
+        el.innerHTML = `
+            <div class="flex items-start gap-2 max-w-[90%] w-full">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm mt-0.5">📄</div>
+                <div class="bg-white/80 ring-1 ring-slate-200/60 text-slate-700 px-4 py-3 rounded-2xl rounded-tl-md shadow-sm w-full">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm font-semibold text-slate-700">${escapeHtml(doc.title || '知识文档')}</div>
+                        <button onclick="downloadDocument(${doc.id}, '${escapeHtml(doc.title || 'document')}')"
+                                class="text-[10px] bg-teal-50 hover:bg-teal-100 text-teal-600 border border-teal-200 px-2.5 py-1 rounded-lg transition">⬇️ 下载 .md</button>
+                    </div>
+                    ${doc.topicName ? `<div class="text-[11px] text-slate-400 mb-2">主题: ${escapeHtml(doc.topicName)}</div>` : ''}
+                    <div class="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto scrollbar-thin">${escapeHtml(doc.content || '(空)')}</div>
+                </div>
+            </div>`;
+        box.appendChild(el);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function downloadDocument(docId, title) {
+        fetch(`${API_BASE}/api/pilot/hotspot/documents/${docId}`)
+            .then(resp => resp.json())
+            .then(doc => {
+                const blob = new Blob([doc.content || ''], {type: 'text/markdown;charset=utf-8'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = (title || 'document').replace(/[^a-zA-Z0-9\u4e00-\u9fa5_\-]/g, '_') + '.md';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(e => setRunStatus('❌ 下载失败：' + e.message, 'red'));
     }
 
     function escapeHtml(s) {

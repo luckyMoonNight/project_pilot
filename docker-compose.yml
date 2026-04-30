@@ -127,7 +127,7 @@ services:
     volumes:
       # 把宿主机要分析的代码项目以只读方式挂进容器
       # 改成你想分析的本地路径，例如 /path/to/your/java-project:/workspace:ro
-      - ${PILOT_TARGET_PROJECT:-./sample-project}:/workspace:ro
+      - ${PILOT_TARGET_PROJECT:-.}:/workspace:ro
     networks:
       - pilot-net
 

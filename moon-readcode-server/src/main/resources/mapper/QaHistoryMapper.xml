@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luckymoon.moon_readcode_server.mapper.QaHistoryMapper">
+
+    <resultMap id="BaseResultMap" type="com.luckymoon.moon_readcode_server.entity.QaHistory">
+        <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
+        <result column="question" property="question"/>
+        <result column="question_vector" property="questionVector"/>
+        <result column="answer" property="answer"/>
+        <result column="hit_refs" property="hitRefs"/>
+        <result column="feedback" property="feedback"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, project_id, question, question_vector, answer, hit_refs, feedback, create_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO qa_history (project_id, question, question_vector, answer, hit_refs, feedback, create_time)
+        VALUES (#{projectId}, #{question}, #{questionVector}, #{answer}, #{hitRefs}, #{feedback}, NOW())
+    </insert>
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM qa_history
+        WHERE project_id = #{projectId}
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="countAfter" resultType="int">
+        SELECT COUNT(*) FROM qa_history
+        WHERE project_id = #{projectId}
+        AND create_time > #{afterTime}
+    </select>
+
+    <update id="updateFeedback">
+        UPDATE qa_history SET feedback = #{feedback} WHERE id = #{id}
+    </update>
+
+</mapper>
