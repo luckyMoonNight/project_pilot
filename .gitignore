@@ -1,16 +1,7 @@
-# Compiled class file
+# ========================
+# Java 编译产物
+# ========================
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
@@ -18,7 +9,53 @@
 *.zip
 *.tar.gz
 *.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+*.ctxt
+.mtj.tmp/
+
+# ========================
+# Maven / Gradle 构建目录
+# ========================
+**/target/
+**/build/
+**/out/
+
+# ========================
+# IDE 配置
+# ========================
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# ========================
+# 环境变量文件（含本地路径、API Key 等私密信息）
+# ========================
+.env
+.env.local
+.env.*.local
+
+# ========================
+# 操作系统
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# 日志
+# ========================
+*.log
+logs/
+
+# ========================
+# Docker 数据卷（如果本地产生）
+# ========================
+mysql_data/
+chroma_data/
+ollama_data/

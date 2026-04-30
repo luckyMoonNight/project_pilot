@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luckymoon.moon_readcode_server.mapper.CodeSummaryMapper">
+
+    <resultMap id="BaseResultMap" type="com.luckymoon.moon_readcode_server.entity.CodeSummary">
+        <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
+        <result column="target_type" property="targetType"/>
+        <result column="target_id" property="targetId"/>
+        <result column="target_ref" property="targetRef"/>
+        <result column="summary" property="summary"/>
+        <result column="vector_id" property="vectorId"/>
+        <result column="model_name" property="modelName"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, project_id, target_type, target_id, target_ref, summary, vector_id, model_name, create_time, update_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO code_summary (project_id, target_type, target_id, target_ref, summary, vector_id, model_name, create_time, update_time)
+        VALUES (#{projectId}, #{targetType}, #{targetId}, #{targetRef}, #{summary}, #{vectorId}, #{modelName}, NOW(), NOW())
+    </insert>
+
+    <update id="updateById">
+        UPDATE code_summary
+        SET project_id = #{projectId},
+            target_type = #{targetType},
+            target_id = #{targetId},
+            target_ref = #{targetRef},
+            summary = #{summary},
+            vector_id = #{vectorId},
+            model_name = #{modelName},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteByProjectId">
+        DELETE FROM code_summary WHERE project_id = #{projectId}
+    </delete>
+
+    <delete id="deleteByTarget">
+        DELETE FROM code_summary
+        WHERE project_id = #{projectId} AND target_type = #{targetType}
+        <if test="targetId != null">AND target_id = #{targetId}</if>
+    </delete>
+
+    <select id="selectByTarget" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_summary
+        WHERE project_id = #{projectId} AND target_type = #{targetType}
+        <if test="targetId != null">AND target_id = #{targetId}</if>
+        LIMIT 1
+    </select>
+
+    <select id="selectByVectorId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_summary
+        WHERE vector_id = #{vectorId}
+        LIMIT 1
+    </select>
+
+    <select id="selectByProjectAndType" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_summary
+        WHERE project_id = #{projectId} AND target_type = #{targetType}
+    </select>
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_summary WHERE project_id = #{projectId}
+    </select>
+
+</mapper>

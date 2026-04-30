@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luckymoon.moon_readcode_server.mapper.CodeClassMapper">
+
+    <resultMap id="BaseResultMap" type="com.luckymoon.moon_readcode_server.entity.CodeClass">
+        <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
+        <result column="file_id" property="fileId"/>
+        <result column="class_name" property="className"/>
+        <result column="qualified_name" property="qualifiedName"/>
+        <result column="package_name" property="packageName"/>
+        <result column="class_type" property="classType"/>
+        <result column="stereotype" property="stereotype"/>
+        <result column="super_class" property="superClass"/>
+        <result column="interfaces" property="interfaces"/>
+        <result column="annotations" property="annotations"/>
+        <result column="start_line" property="startLine"/>
+        <result column="end_line" property="endLine"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, project_id, file_id, class_name, qualified_name, package_name,
+        class_type, stereotype, super_class, interfaces, annotations,
+        start_line, end_line, create_time, update_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO code_class (project_id, file_id, class_name, qualified_name, package_name,
+                                class_type, stereotype, super_class, interfaces, annotations,
+                                start_line, end_line, create_time, update_time)
+        VALUES (#{projectId}, #{fileId}, #{className}, #{qualifiedName}, #{packageName},
+                #{classType}, #{stereotype}, #{superClass}, #{interfaces}, #{annotations},
+                #{startLine}, #{endLine}, NOW(), NOW())
+    </insert>
+
+    <update id="updateById">
+        UPDATE code_class
+        SET file_id = #{fileId},
+            class_name = #{className},
+            qualified_name = #{qualifiedName},
+            package_name = #{packageName},
+            class_type = #{classType},
+            stereotype = #{stereotype},
+            super_class = #{superClass},
+            interfaces = #{interfaces},
+            annotations = #{annotations},
+            start_line = #{startLine},
+            end_line = #{endLine},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteByFileId">
+        DELETE FROM code_class WHERE file_id = #{fileId}
+    </delete>
+
+    <delete id="deleteByProjectId">
+        DELETE FROM code_class WHERE project_id = #{projectId}
+    </delete>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/> FROM code_class WHERE id = #{id}
+    </select>
+
+    <select id="selectByQualifiedName" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_class
+        WHERE project_id = #{projectId} AND qualified_name = #{qualifiedName}
+        LIMIT 1
+    </select>
+
+    <select id="selectByFileId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/> FROM code_class WHERE file_id = #{fileId}
+    </select>
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/> FROM code_class WHERE project_id = #{projectId}
+    </select>
+
+    <select id="selectByStereotype" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_class
+        WHERE project_id = #{projectId} AND stereotype = #{stereotype}
+    </select>
+
+</mapper>
