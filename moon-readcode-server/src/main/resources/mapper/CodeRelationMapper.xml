@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luckymoon.moon_readcode_server.mapper.CodeRelationMapper">
+
+    <resultMap id="BaseResultMap" type="com.luckymoon.moon_readcode_server.entity.CodeRelation">
+        <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
+        <result column="relation_type" property="relationType"/>
+        <result column="from_id" property="fromId"/>
+        <result column="from_type" property="fromType"/>
+        <result column="to_ref" property="toRef"/>
+        <result column="to_id" property="toId"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, project_id, relation_type, from_id, from_type, to_ref, to_id, create_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO code_relation (project_id, relation_type, from_id, from_type, to_ref, to_id, create_time)
+        VALUES (#{projectId}, #{relationType}, #{fromId}, #{fromType}, #{toRef}, #{toId}, NOW())
+    </insert>
+
+    <insert id="batchInsert">
+        INSERT INTO code_relation (project_id, relation_type, from_id, from_type, to_ref, to_id, create_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.projectId}, #{item.relationType}, #{item.fromId}, #{item.fromType},
+             #{item.toRef}, #{item.toId}, NOW())
+        </foreach>
+    </insert>
+
+    <delete id="deleteByFromId">
+        DELETE FROM code_relation WHERE from_id = #{fromId} AND from_type = #{fromType}
+    </delete>
+
+    <delete id="deleteByProjectId">
+        DELETE FROM code_relation WHERE project_id = #{projectId}
+    </delete>
+
+    <select id="selectByFrom" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_relation
+        WHERE project_id = #{projectId} AND from_id = #{fromId} AND from_type = #{fromType}
+    </select>
+
+    <select id="selectByToRef" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_relation
+        WHERE project_id = #{projectId} AND to_ref = #{toRef}
+    </select>
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/> FROM code_relation WHERE project_id = #{projectId}
+    </select>
+
+</mapper>

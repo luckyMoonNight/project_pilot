@@ -1,0 +1,12 @@
+# 构建上下文里不要塞这些大文件，能加速 docker build
+target/
+.idea/
+.vscode/
+*.iml
+.git/
+.gitignore
+.DS_Store
+logs/
+*.log
+HELP.md
+README.md

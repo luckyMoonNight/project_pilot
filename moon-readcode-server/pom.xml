@@ -61,6 +61,30 @@
 			<version>4.0.1</version>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- ========== project-pilot 扩展依赖 ========== -->
+		<!-- Java 源码 AST 解析（提取类、方法、调用关系） -->
+		<dependency>
+			<groupId>com.github.javaparser</groupId>
+			<artifactId>javaparser-symbol-solver-core</artifactId>
+			<version>3.26.2</version>
+		</dependency>
+		<!-- JSON 处理（Spring Boot 已托管版本，由 spring-boot-starter-json 引入；此处显式声明仅为可见性） -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+		<!-- 通用工具：StringUtils 等。Spring Boot 4.x 不再传递 commons-lang3，必须显式声明版本 -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.17.0</version>
+		</dependency>
+		<!-- 文件 hash 计算（Spring Boot 已托管版本，无需指定） -->
+		<dependency>
+			<groupId>commons-codec</groupId>
+			<artifactId>commons-codec</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>

@@ -1,0 +1,144 @@
+# ============================================================
+# project-pilot 一键启动编排
+# 启动：docker compose up -d
+# 停止：docker compose down
+# 查日志：docker compose logs -f
+# ============================================================
+services:
+
+  # ----------------------------------------------------------
+  # MySQL：存储扫描后的代码元数据、AST 结构、语义摘要
+  # ----------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: pilot-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: moon_readcode
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"  # 暴露到宿主机，方便用 TablePlus 等工具连接
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 把建表 SQL 挂到 MySQL 的初始化目录，第一次启动自动执行
+      - ./moon-readcode-server/src/main/resources/db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - pilot-net
+
+  # ----------------------------------------------------------
+  # Ollama：本地大模型服务
+  # ⚠️ Mac 用户已禁用容器内 Ollama，改用宿主机 Ollama（brew install ollama）
+  #     原因：Apple Silicon 的 Metal GPU 无法穿透到容器，容器内只能 CPU 推理（慢 5 倍）
+  #     宿主机 Ollama 通过 host.docker.internal:11434 被容器访问
+  #
+  # 如果你不想装宿主机 Ollama，把下面这段取消注释即可启用容器内方案
+  # ----------------------------------------------------------
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: pilot-ollama
+  #   restart: unless-stopped
+  #   environment:
+  #     OLLAMA_HOST: 0.0.0.0
+  #     OLLAMA_KEEP_ALIVE: "24h"
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   networks:
+  #     - pilot-net
+
+  # ----------------------------------------------------------
+  # Chroma：向量数据库，存储语义摘要的 embedding，用于 RAG 召回
+  # ----------------------------------------------------------
+  chroma:
+    # 锁定 0.4.24：0.5.x 起 API 全面切到 v2 且引入 tenant/database 路径，与当前 ChromaVectorStore 不兼容
+    # 如要升级到 0.5+，需同步改 ChromaVectorStore 的 API 路径
+    image: chromadb/chroma:0.4.24
+    container_name: pilot-chroma
+    restart: unless-stopped
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports:
+      - "8000:8000"  # 暴露到宿主机，方便调试
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - pilot-net
+
+  # ----------------------------------------------------------
+  # Java 服务：moon-readcode-server
+  # ----------------------------------------------------------
+  app:
+    build:
+      context: ./moon-readcode-server
+      dockerfile: Dockerfile
+    container_name: pilot-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+      # ollama 跑在宿主机，无需在此声明依赖
+    # 让容器内可以解析 host.docker.internal 到宿主机（Linux 上必须显式加，Mac 默认就支持）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      # --- 数据源配置：通过 Spring Boot 的 environment 占位符覆盖 properties ---
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/moon_readcode?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+
+      # --- pilot 自定义配置 ---
+      # 容器内的扫描根路径：把宿主机要分析的项目挂到 /workspace 下
+      PILOT_SCANNER_BASE_PATH: /workspace
+      # 切换到 chroma 向量库
+      PILOT_VECTOR_TYPE: chroma
+      PILOT_VECTOR_CHROMA_URL: http://chroma:8000
+      PILOT_VECTOR_CHROMA_COLLECTION: moon_readcode
+      PILOT_VECTOR_DIMENSION: ${PILOT_VECTOR_DIMENSION:-1024}
+
+      # --- LLM 配置 ---
+      # 默认 ollama（本地大模型，零成本零依赖），api-base 指向宿主机 Ollama
+      # 切换示例：
+      #   宿主机 Ollama（默认）：直接 docker compose up -d
+      #   通义千问：PILOT_LLM_PROVIDER=dashscope DASHSCOPE_API_KEY=sk-xxx docker compose up -d
+      #   容器内 Ollama：先在 services 里取消注释 ollama 服务块，再 PILOT_LLM_API_BASE=http://ollama:11434/v1 启动
+      PILOT_LLM_PROVIDER: ${PILOT_LLM_PROVIDER:-ollama}
+      PILOT_LLM_CHAT_MODEL: ${PILOT_LLM_CHAT_MODEL:-qwen2.5:7b}
+      PILOT_LLM_EMBEDDING_MODEL: ${PILOT_LLM_EMBEDDING_MODEL:-bge-m3}
+      PILOT_LLM_API_KEY: ${DASHSCOPE_API_KEY:-${PILOT_LLM_API_KEY:-ollama-no-key}}
+      PILOT_LLM_API_BASE: ${PILOT_LLM_API_BASE:-http://host.docker.internal:11434/v1}
+
+      TZ: Asia/Shanghai
+
+      # Java 远程调试（suspend=n 表示不阻塞启动，调试器连不连都能正常跑）
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    ports:
+      - "8080:8080"
+      - "5005:5005"  # Java 远程调试端口
+    volumes:
+      # 把宿主机要分析的代码项目以只读方式挂进容器
+      # 改成你想分析的本地路径，例如 /path/to/your/java-project:/workspace:ro
+      - ${PILOT_TARGET_PROJECT:-./sample-project}:/workspace:ro
+    networks:
+      - pilot-net
+
+# ----------------------------------------------------------
+# 网络与卷
+# ----------------------------------------------------------
+networks:
+  pilot-net:
+    driver: bridge
+
+volumes:
+  mysql_data:    # MySQL 数据持久化卷（容器删了数据还在）
+  chroma_data:   # Chroma 数据持久化卷
+  # ollama_data: # 容器内 Ollama 才需要；当前用宿主机 Ollama，模型存在 ~/.ollama/

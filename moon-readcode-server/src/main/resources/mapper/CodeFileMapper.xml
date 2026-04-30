@@ -5,16 +5,19 @@
 
     <resultMap id="BaseResultMap" type="com.luckymoon.moon_readcode_server.entity.CodeFile">
         <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
         <result column="file_name" property="fileName"/>
         <result column="file_path" property="filePath"/>
         <result column="file_type" property="fileType"/>
+        <result column="package_name" property="packageName"/>
+        <result column="content_hash" property="contentHash"/>
         <result column="content" property="content"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
     <sql id="BaseColumnList">
-        id, file_name, file_path, file_type, content, create_time, update_time
+        id, project_id, file_name, file_path, file_type, package_name, content_hash, content, create_time, update_time
     </sql>
 
     <select id="selectAll" resultMap="BaseResultMap">
@@ -34,16 +37,32 @@
         WHERE file_path LIKE CONCAT('%', #{filePath}, '%')
     </select>
 
+    <select id="selectByProjectAndPath" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_file
+        WHERE project_id = #{projectId} AND file_path = #{filePath}
+        LIMIT 1
+    </select>
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_file
+        WHERE project_id = #{projectId}
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO code_file (file_name, file_path, file_type, content, create_time, update_time)
-        VALUES (#{fileName}, #{filePath}, #{fileType}, #{content}, NOW(), NOW())
+        INSERT INTO code_file (project_id, file_name, file_path, file_type, package_name, content_hash, content, create_time, update_time)
+        VALUES (#{projectId}, #{fileName}, #{filePath}, #{fileType}, #{packageName}, #{contentHash}, #{content}, NOW(), NOW())
     </insert>
 
     <update id="updateById">
         UPDATE code_file
-        SET file_name = #{fileName},
+        SET project_id = #{projectId},
+            file_name = #{fileName},
             file_path = #{filePath},
             file_type = #{fileType},
+            package_name = #{packageName},
+            content_hash = #{contentHash},
             content = #{content},
             update_time = NOW()
         WHERE id = #{id}

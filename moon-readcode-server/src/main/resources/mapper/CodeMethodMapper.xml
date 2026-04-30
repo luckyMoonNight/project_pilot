@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.luckymoon.moon_readcode_server.mapper.CodeMethodMapper">
+
+    <resultMap id="BaseResultMap" type="com.luckymoon.moon_readcode_server.entity.CodeMethod">
+        <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
+        <result column="class_id" property="classId"/>
+        <result column="method_name" property="methodName"/>
+        <result column="signature" property="signature"/>
+        <result column="return_type" property="returnType"/>
+        <result column="parameters" property="parameters"/>
+        <result column="annotations" property="annotations"/>
+        <result column="modifiers" property="modifiers"/>
+        <result column="body_snippet" property="bodySnippet"/>
+        <result column="start_line" property="startLine"/>
+        <result column="end_line" property="endLine"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, project_id, class_id, method_name, signature, return_type, parameters,
+        annotations, modifiers, body_snippet, start_line, end_line, create_time, update_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO code_method (project_id, class_id, method_name, signature, return_type, parameters,
+                                 annotations, modifiers, body_snippet, start_line, end_line,
+                                 create_time, update_time)
+        VALUES (#{projectId}, #{classId}, #{methodName}, #{signature}, #{returnType}, #{parameters},
+                #{annotations}, #{modifiers}, #{bodySnippet}, #{startLine}, #{endLine}, NOW(), NOW())
+    </insert>
+
+    <update id="updateById">
+        UPDATE code_method
+        SET class_id = #{classId},
+            method_name = #{methodName},
+            signature = #{signature},
+            return_type = #{returnType},
+            parameters = #{parameters},
+            annotations = #{annotations},
+            modifiers = #{modifiers},
+            body_snippet = #{bodySnippet},
+            start_line = #{startLine},
+            end_line = #{endLine},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteByClassId">
+        DELETE FROM code_method WHERE class_id = #{classId}
+    </delete>
+
+    <delete id="deleteByProjectId">
+        DELETE FROM code_method WHERE project_id = #{projectId}
+    </delete>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/> FROM code_method WHERE id = #{id}
+    </select>
+
+    <select id="selectBySignature" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM code_method
+        WHERE project_id = #{projectId} AND signature = #{signature}
+        LIMIT 1
+    </select>
+
+    <select id="selectByClassId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/> FROM code_method WHERE class_id = #{classId}
+    </select>
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumnList"/> FROM code_method WHERE project_id = #{projectId}
+    </select>
+
+</mapper>
